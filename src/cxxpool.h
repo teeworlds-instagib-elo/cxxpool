@@ -13,7 +13,11 @@
 #include <vector>
 #include <chrono>
 #include <cstddef>
+#include <optional>
 
+#if !defined(__cpp_exceptions) and !defined(_CPPUNWIND)
+#define NOEXCEPT
+#endif
 
 namespace cxxpool {
 namespace detail {
@@ -223,19 +227,27 @@ public:
             const auto n_target = threads_.size() + n_threads;
             while (threads_.size() < n_target) {
                 std::thread thread;
+                #ifndef NOEXCEPT
                 try {
+                #endif//NOEXCEPT
                     thread = std::thread{&thread_pool::worker, this};
+                #ifndef NOEXCEPT
                 } catch (...) {
                     shutdown();
                     throw;
                 }
+                #endif//NOEXCEPT
+                #ifndef NOEXCEPT
                 try {
+                #endif//NOEXCEPT
                     threads_.push_back(std::move(thread));
+                #ifndef NOEXCEPT
                 } catch (...) {
                     shutdown();
                     thread.join();
                     throw;
                 }
+                #endif//NOEXCEPT
             }
         }
     }
@@ -257,20 +269,30 @@ public:
         if (n_threads > 0) {
             {
                 std::lock_guard<std::mutex> task_lock(task_mutex_);
-                if (done_)
+                if (done_) {
+                #ifndef NOEXCEPT
                     throw thread_pool_error{"add_threads called while pool is shutting down"};
+                #else
+                    return;
+                #endif
+                }
             }
             std::lock_guard<std::mutex> thread_lock(thread_mutex_);
             const auto n_target = threads_.size() + n_threads;
             while (threads_.size() < n_target) {
                 std::thread thread(&thread_pool::worker, this);
+                
+                #ifndef NOEXCEPT
                 try {
+                #endif//NOEXCEPT
                     threads_.push_back(std::move(thread));
+                #ifndef NOEXCEPT
                 } catch (...) {
                     shutdown();
                     thread.join();
                     throw;
                 }
+                #endif//NOEXCEPT
             }
         }
     }
@@ -280,7 +302,13 @@ public:
         {
             std::lock_guard<std::mutex> task_lock(task_mutex_);
             if (done_)
+            {
+            #ifndef NOEXCEPT
                 throw thread_pool_error{"n_threads called while pool is shutting down"};
+            #else
+                return -1;
+            #endif
+            }
         }
         std::lock_guard<std::mutex> thread_lock(thread_mutex_);
         return threads_.size();
@@ -289,14 +317,14 @@ public:
     // Pushes a new task into the thread pool and returns the associated future.
     // The task will have a priority of 0
     template<typename Functor, typename... Args>
-    auto push(Functor&& functor, Args&&... args) -> std::future<decltype(functor(args...))> {
+    auto push(Functor&& functor, Args&&... args) -> std::optional<std::future<decltype(functor(args...))>> {
         return push(0, std::forward<Functor>(functor), std::forward<Args>(args)...);
     }
 
     // Pushes a new task into the thread pool while providing a priority and
     // returns the associated future. Higher priorities are processed first
     template<typename Functor, typename... Args>
-    auto push(std::size_t priority, Functor&& functor, Args&&... args) -> std::future<decltype(functor(args...))> {
+    auto push(std::size_t priority, Functor&& functor, Args&&... args) -> std::optional<std::future<decltype(functor(args...))>> {
         typedef decltype(functor(args...)) result_type;
         auto pack_task = std::make_shared<std::packaged_task<result_type()>>(
                 std::bind(std::forward<Functor>(functor), std::forward<Args>(args)...));
@@ -304,7 +332,13 @@ public:
         {
             std::lock_guard<std::mutex> task_lock(task_mutex_);
             if (done_)
+            {
+            #ifndef NOEXCEPT
                 throw cxxpool::thread_pool_error{"push called while pool is shutting down"};
+            #else
+                return {};
+            #endif
+            }
             tasks_.emplace([pack_task]{ (*pack_task)(); }, priority, ++task_counter_);
         }
         task_cond_var_.notify_one();

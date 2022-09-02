@@ -2,7 +2,6 @@
 set -e
 thisdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cpp=$thisdir/test.cpp
-examples=$thisdir/../examples/*.cpp
 
 user_mode=$1
 mode=release
@@ -18,4 +17,4 @@ if [ "x$CXX" != "x" ];then
 fi
 
 echo "Compiling $cpp with $compiler ..."
-$compiler -std=c++11 $opt -g -lunittest -DUSE_LIBUNITTEST -pedantic -Wall -Wextra -Wconversion -Werror -pthread $examples $cpp -o ${cpp%.cpp}.$mode
+$compiler -std=gnu++17 $opt -g -pedantic -Wall -Wextra -Wconversion -Werror -pthread $cpp -o ${cpp%.cpp}.$mode

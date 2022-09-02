@@ -20,8 +20,8 @@ void basic_with_three_tasks(std::ostream& os) {
     auto future3 = pool.push(sum, 6, 7);
 
     // output: results = 42, 13, 13
-    os << "results = " << future1.get() << ", ";
-    os << future2.get() << ", " << future3.get() << std::endl;
+    os << "results = " << future1.value().get() << ", ";
+    os << future2.value().get() << ", " << future3.value().get() << std::endl;
 }
 
 }
